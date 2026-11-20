@@ -9,4 +9,8 @@ REASONS = {
     'AMOUNT_DELTA': '复算与外部账计量不同', 'BOOK_CONFLICT': '独立账含重复业务键',
     'RUN_UNKNOWN': '没有此批次', 'DEMO_UNKNOWN': '没有此样例', 'STALE': '复核版本已过期',
     'REVIEW_NOTE': '有差异时须填写复核意见', 'REVIEW_DECISION': '复核结论无效',
+    'MERGE_RUNS': '合卷批次不足', 'MERGE_ROLE': '合卷角色序列无效',
+    'MERGE_EMPTY': '批次无可采信测段', 'MERGE_DUP_RUN': '同一批次重复参与合卷',
+    'MERGE_BOUNDARY': '合卷边界无法判定', 'MERGE_UNKNOWN': '没有此合卷成果',
+    'MERGE_CLOSURE': '合卷闭合失败，成果未生成',
 }

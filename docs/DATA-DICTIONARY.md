@@ -21,3 +21,18 @@
 影子版本与重复行保留原始字段。复核按版本追加，旧版本提交返回 409。
 
 导入原文件时指纹取源字节，编辑预览后以提交的 UTF-8 文本计算。
+
+## 合卷成果
+
+合卷由 `POST /api/merges` 生成，入参为有序 `run_ids` 与等长 `roles`（首位 `基线`，其余 `补测`）。成果表：
+
+| 路径 | 含义 |
+|---|---|
+| `manifest.merge_id` | 合卷指纹，规则版本+批次+角色定版，同序列重跑幂等 |
+| `manifest.coverage` | 各批次测段里程覆盖并集 |
+| `boundaries[]` | 逐基础区间：起止里程、状态（`SINGLE`/`OVERLAP`/`GAP`）、归属批次测段行号、挖填方、全部覆盖方 |
+| `adjustments[]` | 逐测段边界调整单：原结论、保留计入、重叠去重、责任去向 `removed_by`、状态（`EFFECTIVE`/`PARTIAL`/`REPLACED`） |
+| `totals` | 调整前 `original_total`、调整后 `merged_total`、去重 `removed_overlap`、差额 `delta`、闭合残差 `closure_residual`、并集/重叠/空档里程 |
+| `review` | 合卷复核独立版本链（导出时随附） |
+
+金额均为三位小数十进制字符串。闭合残差必须为 `0.000`，否则合卷整体失败并回滚，旧版成果与原批次结论保留。

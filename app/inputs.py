@@ -50,6 +50,17 @@ class Review(BaseModel):
     note: str = Field(default='',max_length=500)
 
 
+class MergeRequest(BaseModel):
+    run_ids: list[str] = Field(min_length=2, max_length=20)
+    roles: list[Literal['基线', '补测']] = Field(min_length=2, max_length=20)
+
+
+class MergeReview(BaseModel):
+    version: int = Field(ge=0)
+    decision: Literal['确认','退回']
+    note: str = Field(default='', max_length=500)
+
+
 def read_sample(name):
     choices = {'shift':'shift.csv','external':'external.csv'}
     if name not in choices:

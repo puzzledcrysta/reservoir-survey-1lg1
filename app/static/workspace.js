@@ -13,8 +13,13 @@ let selected = Object.hasOwn(settings.tabs, location.hash.slice(1)) ? location.h
 let result = null;
 let inputs = {};
 let reviewVersion = 0;
+let mergeVersion = 0;
+let mergeReport = null;
 let renderEpoch = 0;
 const uploaded = new Map();
+
+const MERGE_STATUS = {EFFECTIVE: '原结论有效', PARTIAL: '部分调整', REPLACED: '已被取代'};
+const BOUNDARY_STATUS = {SINGLE: '单源', OVERLAP: '重叠·补测优先', GAP: '里程空档'};
 
 function notice(message, error = false) {
   alert.value = message;
@@ -88,6 +93,8 @@ async function render() {
   const stage = selected;
   byId('phase').textContent = settings.tabs[stage];
   byId('review').hidden = true;
+  byId('merge').hidden = stage !== 'merge';
+  if (stage !== 'merge' && result) topExport.href = `/api/export/${result.manifest.run_id}`;
   for (const link of links) {
     if (link.dataset.module === stage) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
@@ -145,6 +152,9 @@ async function render() {
         return button;
       }]];
       rows = runs;
+    } else if (stage === 'merge') {
+      await renderMerge(id, ticket);
+      return;
     } else {
       const timeline = await query(`/api/review/${id}`);
       view = [['版本','version','num'], ['结论','decision'], ['复核意见','note'], ['登记 UTC','changed']];
@@ -163,6 +173,128 @@ async function render() {
 window.addEventListener('hashchange', () => {
   selected = Object.hasOwn(settings.tabs, location.hash.slice(1)) ? location.hash.slice(1) : 'domain';
   render();
+});
+
+function mergePicker(runs, currentId) {
+  const select = el('select');
+  select.append(new Option('（不参与）', ''));
+  for (const row of runs) {
+    const option = new Option(`${row.id.slice(0, 9)} · ${row.created.slice(0, 19)}`, row.id);
+    if (row.id === currentId) option.selected = true;
+    select.append(option);
+  }
+  return select;
+}
+
+async function renderMerge(currentId, ticket) {
+  const runs = await query('/api/runs');
+  const old = byId('merge-pickers');
+  if (old) old.remove();
+  const pickers = el('div');
+  pickers.id = 'merge-pickers';
+  // 基线固定为当前批，补测从历史批次中选择；按提交顺序确定权威优先级
+  const base = mergePicker(runs, currentId);
+  base.disabled = true;
+  const supplement = mergePicker(runs, runs.find(row => row.id !== currentId)?.id || '');
+  pickers.append(el('label', '基线批次'), base, el('label', '补测批次（重叠区权威）'), supplement);
+  byId('merge').prepend(pickers);
+  byId('merge').dataset.base = currentId;
+  supplement.addEventListener('change', () => { byId('merge').dataset.supplement = supplement.value; });
+  byId('merge').dataset.supplement = supplement.value;
+
+  const history = await query('/api/merges');
+  const columns = [
+    ['合卷指纹', row => row.id.slice(0, 9)],
+    ['定版 UTC', 'created'],
+    ['状态', 'status'],
+    ['打开', row => {
+      const button = el('button', '查看合卷', 'btn');
+      button.addEventListener('click', async () => {
+        try { await showMerge(await query(`/api/merges/${row.id}`), ticket); }
+        catch (error) { notice(error.message, true); }
+      });
+      return button;
+    }],
+  ];
+  const parts = [el('h3', '已定版合卷（工作台与导出同版）'), ];
+  const wrap = el('div');
+  table(wrap, columns, history);
+  parts.push(wrap);
+  if (ticket === renderEpoch) body.replaceChildren(...parts);
+}
+
+async function showMerge(report, ticket) {
+  mergeReport = report;
+  const totals = report.totals;
+  byId('merge-totals').value =
+    `调整前 ${totals.original_total} → 调整后 ${totals.merged_total} ${settings.unit} · ` +
+    `去重 ${totals.removed_overlap} · 差额 ${totals.delta} · 闭合残差 ${totals.closure_residual}`;
+  topExport.hidden = false;
+  topExport.href = `/api/export/merge/${report.merge_id}`;
+
+  const adjustmentView = [
+    ['角色', 'role'], ['测段', 'key'], ['行号', 'line', 'num'],
+    ['里程', row => `${row.span_from}–${row.span_to}`],
+    ['原结论', 'original_amount', 'num'],
+    ['保留计入', 'retained_amount', 'num'],
+    ['重叠去重', 'removed_amount', 'num'],
+    ['结论状态', row => el('span', MERGE_STATUS[row.status] || row.status,
+                           row.status === 'EFFECTIVE' ? 'state' : 'state problem')],
+    ['责任去向', row => row.removed_by.map(item => `${item.run_id.slice(0, 9)} 取 ${item.amount}`).join('；') || '—'],
+  ];
+  const boundaryView = [
+    ['里程起', 'from', 'num'], ['里程止', 'to', 'num'],
+    ['边界状态', row => el('span', BOUNDARY_STATUS[row.status] || row.status,
+                           row.status === 'OVERLAP' ? 'state problem' : 'state')],
+    ['归属测段', 'owner_key'], ['挖方', 'cut', 'num'], ['填方', 'fill', 'num'],
+  ];
+  const head = el('h3', `合卷 ${report.merge_id.slice(0, 9)} · 边界调整单与逐区间归属`);
+  const note = el('p', `并集里程 ${totals.union_mileage} 米；重叠 ${totals.overlap_mileage} 米；` +
+                       `空档 ${totals.gap_mileage} 米（空档不臆造断面）`, 'empty');
+  const aWrap = el('div');
+  table(aWrap, adjustmentView, report.adjustments);
+  const bWrap = el('div');
+  table(bWrap, boundaryView, report.boundaries);
+  if (ticket !== renderEpoch) return;
+  body.replaceChildren(head, note, el('h4', '测段责任（哪些结论已变 / 仍有效）'), aWrap,
+                       el('h4', '合卷边界（每区间仅一个权威来源）'), bWrap);
+
+  const timeline = await query(`/api/review/merge/${report.merge_id}`);
+  mergeVersion = timeline[0]?.version || 0;
+  const tWrap = el('div');
+  table(tWrap, [['版本','version','num'], ['结论','decision'], ['复核意见','note'], ['登记 UTC','changed']], timeline);
+  const reviewBox = el('div');
+  const opinion = el('textarea');
+  opinion.maxLength = 500;
+  const decision = el('select');
+  decision.append(new Option('确认'), new Option('退回'));
+  const submit = el('button', '提交合卷复核', 'btn btn--primary');
+  submit.type = 'button';
+  submit.addEventListener('click', async () => {
+    try {
+      await query(`/api/review/merge/${report.merge_id}`,
+                  {version: mergeVersion, decision: decision.value, note: opinion.value});
+      notice('合卷复核已登记');
+      opinion.value = '';
+      await showMerge(await query(`/api/merges/${report.merge_id}`), ticket);
+    } catch (error) { notice(error.message, true); }
+  });
+  reviewBox.append(el('h4', '合卷复核（独立版本链，旧版本提交返回 409）'), tWrap,
+                   el('label', '复核意见（有边界调整时必填）'), opinion, decision, submit);
+  if (ticket === renderEpoch) body.append(reviewBox);
+}
+
+byId('merge').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.target;
+  const supplementId = form.dataset.supplement;
+  if (!supplementId) return notice('请选择补测批次', true);
+  try {
+    const report = await query('/api/merges', {
+      run_ids: [form.dataset.base, supplementId], roles: ['基线', '补测']});
+    notice(report.reused ? '命中已定版合卷，未重复累加' : '合卷已定版');
+    await showMerge(report, renderEpoch);
+  } catch (error) { notice(error.message, true); }
 });
 byId('sample').addEventListener('click', async () => {
   const paths = ['shift', 'external'];

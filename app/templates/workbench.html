@@ -25,6 +25,11 @@
         <label>复核意见<textarea id="review-note" maxlength="500"></textarea></label>
         <div class="actions"><label>结论<select id="decision"><option>确认</option><option>退回</option></select></label>
         <button class="btn btn--primary" type="submit">提交复核</button></div>
+      </form>
+      <form id="merge" class="panel__body" hidden>
+        <p class="empty">选择基线与补测批次（按提交顺序，首位为基线，其后为补测）。重叠里程以补测为权威，原测段结论保留并出具边界调整单。</p>
+        <div class="actions"><button type="submit" class="btn btn--primary">生成合卷</button></div>
+        <output class="notice" id="merge-totals" role="status"></output>
       </form></section>
 <section class="panel signal" id="evidence-panel" data-instrument="datum">
     <div class="panel__head"><h2>测站复核</h2><span class="num" id="evidence-key"></span></div>

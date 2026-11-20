@@ -13,6 +13,15 @@ CREATE TABLE IF NOT EXISTS reviews (
   decision TEXT NOT NULL, note TEXT NOT NULL, changed TEXT NOT NULL,
   PRIMARY KEY(run_id,version)
 );
+CREATE TABLE IF NOT EXISTS merges (
+  id TEXT PRIMARY KEY, run_ids TEXT NOT NULL, roles TEXT NOT NULL,
+  result TEXT NOT NULL, created TEXT NOT NULL, status TEXT NOT NULL DEFAULT '定版'
+);
+CREATE TABLE IF NOT EXISTS merge_reviews (
+  merge_id TEXT NOT NULL REFERENCES merges(id), version INTEGER NOT NULL,
+  decision TEXT NOT NULL, note TEXT NOT NULL, changed TEXT NOT NULL,
+  PRIMARY KEY(merge_id,version)
+);
 """
 
 
