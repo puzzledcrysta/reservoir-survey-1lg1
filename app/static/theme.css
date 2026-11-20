@@ -1,0 +1,16 @@
+/* 测站 · 零面积线 */
+:root {
+  color-scheme: light;
+  --bg: #eee9d7; --rail: #2a2f2c; --accent: #766000; --ink: #302f24;
+  --panel: color-mix(in srgb, var(--bg) 91%, white);
+  --line: color-mix(in srgb, var(--ink) 24%, var(--bg));
+  --mute: color-mix(in srgb, var(--ink) 78%, var(--bg));
+  --th: color-mix(in srgb, var(--panel) 84%, var(--accent));
+  --rail-ink: #f2f0e9;
+  --primary: #fff;
+  --bad: #832635;
+  --ui: Menlo, monospace; --mono: ui-monospace, Menlo, monospace;
+  --pad: 12px; --row: 29px; --gap: 19px;
+  --figure: 26px; --title: 45px; --graph: 60px;
+  --scroll: 396px;
+}
